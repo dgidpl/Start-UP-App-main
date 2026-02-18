@@ -42,7 +42,7 @@ function handleRequest(e) {
         var sheet = getMainSheet();
         // Safety check: if sheet is totally empty, add headers
         if (sheet.getLastRow() === 0) {
-            sheet.appendRow(["Date", "Author", "Phone", "ID", "Content", "Status", "Upvotes", "Downvotes"]);
+            sheet.appendRow(["Date", "Author", "Phone", "ID", "Content", "Status", "Upvotes", "Downvotes", "Topic"]);
         }
         var action = e.parameter.action;
         var data = e.parameter;
@@ -87,7 +87,7 @@ function getAllIdeas(sheet) {
         var row = data[i];
         if (!row[3] && !row[4]) continue; // Skip empty rows
         // Structure: 
-        // 0: Date, 1: Author, 2: Phone, 3: ID, 4: Content, 5: Status, 6: Up, 7: Down
+        // 0: Date, 1: Author, 2: Phone, 3: ID, 4: Content, 5: Status, 6: Up, 7: Down, 8: Topic
         ideas.push({
             date: row[0],
             author: row[1],
@@ -96,7 +96,8 @@ function getAllIdeas(sheet) {
             content: row[4],
             status: row[5],
             upvotes: row[6],
-            downvotes: row[7]
+            downvotes: row[7],
+            topic: row[8] || ""
         });
     }
     // Debug info if empty
@@ -116,7 +117,8 @@ function createIdea(sheet, params) {
     var author = params.author || "Анонім";
     var phone = params.phone || "";
     var content = params.content;
-    sheet.appendRow([date, author, phone, id, content, "Нова", 0, 0]);
+    var topic = params.topic || "";
+    sheet.appendRow([date, author, phone, id, content, "Нова", 0, 0, topic]);
     return responseJSON({ status: "success", id: id });
 }
 function voteIdea(sheet, params) {
