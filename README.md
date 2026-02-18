@@ -8,3 +8,4 @@
 - Tailwind CSS v4
 - Google Sheets API (Apps Script backend)
 - Lucide React (іконки)
+
