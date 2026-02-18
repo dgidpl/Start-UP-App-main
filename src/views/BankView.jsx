@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, Database, User, Clock, ThumbsUp, ThumbsDown, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Loader2, Tag } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, Database, User, Clock, ThumbsUp, ThumbsDown, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Tag, Filter, BarChart3, CheckCircle2, Flame, Layers } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import IdeaModal from '../components/IdeaModal';
 import * as api from '../services/api';
@@ -16,12 +16,50 @@ function getPageNumbers(current, total) {
     return pages;
 }
 
+// Скелетон-картка
+function SkeletonCard() {
+    return (
+        <div className="bg-slate-800/40 border border-white/5 rounded-2xl p-5 space-y-4">
+            <div className="flex justify-between items-start">
+                <div className="skeleton h-6 w-20"></div>
+                <div className="skeleton h-4 w-24"></div>
+            </div>
+            <div className="space-y-2">
+                <div className="skeleton h-5 w-full"></div>
+                <div className="skeleton h-5 w-3/4"></div>
+            </div>
+            <div className="border-t border-white/5 pt-3 flex justify-between items-center">
+                <div className="flex gap-3">
+                    <div className="skeleton h-4 w-24"></div>
+                    <div className="skeleton h-4 w-20"></div>
+                </div>
+                <div className="flex gap-2">
+                    <div className="skeleton h-8 w-16 rounded-lg"></div>
+                    <div className="skeleton h-8 w-16 rounded-lg"></div>
+                    <div className="skeleton h-8 w-12 rounded-lg"></div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const FILTERS = [
+    { id: 'all', label: 'Всі ідеї', icon: Layers },
+    { id: 'new', label: 'Нові', icon: Flame },
+    { id: 'popular', label: 'Популярні', icon: BarChart3 },
+    { id: 'done', label: 'Реалізовані', icon: CheckCircle2 },
+];
+
 export default function BankView({ ideas, loading, localVotes, setLocalVotes, showNotify, refreshIdeas }) {
     const [search, setSearch] = useState('');
     const [selectedIdea, setSelectedIdea] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
     const [commentCounts, setCommentCounts] = useState({});
     const [currentPage, setCurrentPage] = useState(1);
+    const [activeFilter, setActiveFilter] = useState('all');
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [votedId, setVotedId] = useState(null);
+    const filterRef = useRef(null);
     const itemsPerPage = 10;
 
     // Завантаження кількості коментарів
@@ -41,17 +79,55 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
         if (ideas.length > 0) loadCounts();
     }, [ideas]);
 
-    const filteredIdeas = useMemo(() => {
-        return ideas.filter(idea =>
-            (idea.content && idea.content.toLowerCase().includes(search.toLowerCase())) ||
-            (idea.author && idea.author.toLowerCase().includes(search.toLowerCase()))
-        );
-    }, [ideas, search]);
+    // Закриття фільтра при кліку зовні
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (filterRef.current && !filterRef.current.contains(e.target)) {
+                setFilterOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-    // Скидання сторінки при пошуку
+    // Фільтрація + пошук
+    const filteredIdeas = useMemo(() => {
+        let result = ideas;
+
+        // Фільтр за статусом
+        if (activeFilter === 'new') {
+            result = result.filter(i => i.status === 'Нова');
+        } else if (activeFilter === 'done') {
+            result = result.filter(i => i.status === 'Реалізовано' || i.status === 'Виконано');
+        } else if (activeFilter === 'popular') {
+            result = [...result].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
+        }
+
+        // Пошук
+        if (search) {
+            const q = search.toLowerCase();
+            result = result.filter(idea =>
+                (idea.content && idea.content.toLowerCase().includes(q)) ||
+                (idea.author && idea.author.toLowerCase().includes(q)) ||
+                (idea.topic && idea.topic.toLowerCase().includes(q))
+            );
+        }
+
+        return result;
+    }, [ideas, search, activeFilter]);
+
+    // Статистика
+    const stats = useMemo(() => {
+        const total = ideas.length;
+        const done = ideas.filter(i => i.status === 'Реалізовано' || i.status === 'Виконано').length;
+        const topVotes = ideas.reduce((max, i) => Math.max(max, i.upvotes || 0), 0);
+        return { total, done, topVotes };
+    }, [ideas]);
+
+    // Скидання сторінки при пошуку / фільтрі
     useEffect(() => {
         setCurrentPage(1);
-    }, [search]);
+    }, [search, activeFilter]);
 
     // Пагінація
     const totalPages = Math.ceil(filteredIdeas.length / itemsPerPage);
@@ -71,6 +147,10 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
         setLocalVotes(newVotes);
         localStorage.setItem('npu_ideas_votes', JSON.stringify(newVotes));
 
+        // Анімація
+        setVotedId(id + '-' + type);
+        setTimeout(() => setVotedId(null), 500);
+
         try {
             await api.vote(id, type);
             showNotify(type === 'up' ? "Ви підтримали цю ідею!" : "Ваш голос враховано");
@@ -80,28 +160,95 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
         }
     };
 
+    const activeFilterLabel = FILTERS.find(f => f.id === activeFilter)?.label || 'Всі ідеї';
+
     return (
-        <div className="space-y-6">
-            {/* Пошук */}
+        <div className="space-y-5">
+            {/* Панель статистики */}
+            {!loading && ideas.length > 0 && (
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="card-depth glass-edge bg-slate-800/40 border border-white/5 rounded-2xl p-4 text-center">
+                        <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                            <Layers size={20} className="text-blue-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-white">{stats.total}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Всього ідей</div>
+                    </div>
+                    <div className="card-depth glass-edge bg-slate-800/40 border border-white/5 rounded-2xl p-4 text-center">
+                        <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                            <CheckCircle2 size={20} className="text-emerald-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-white">{stats.done}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Реалізовано</div>
+                    </div>
+                    <div className="card-depth glass-edge bg-slate-800/40 border border-white/5 rounded-2xl p-4 text-center">
+                        <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-orange-500/15 flex items-center justify-center">
+                            <Flame size={20} className="text-orange-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-white">{stats.topVotes}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Макс. голосів</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Пошук + фільтр */}
             <div className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl py-4 -mx-4 px-4 md:mx-0 md:px-0 border-b md:border-none border-white/5">
-                <div className="relative">
-                    <Search className="absolute left-4 top-3.5 text-slate-500" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Пошук ідей..."
-                        aria-label="Пошук ідей"
-                        className="w-full bg-slate-900 border border-white/10 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none text-white placeholder-slate-600 shadow-inner"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                    />
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-3.5 text-slate-500" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Пошук ідей..."
+                            aria-label="Пошук ідей"
+                            className="w-full bg-slate-900 border border-white/10 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none text-white placeholder-slate-600 shadow-inner"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Кнопка фільтра */}
+                    <div className="relative" ref={filterRef}>
+                        <button
+                            onClick={() => setFilterOpen(!filterOpen)}
+                            className={`h-full px-4 rounded-2xl border transition-all flex items-center gap-2 text-sm font-medium ${activeFilter !== 'all'
+                                    ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
+                                    : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                                }`}
+                            aria-label="Фільтрувати ідеї"
+                        >
+                            <Filter size={18} />
+                            <span className="hidden sm:inline">{activeFilterLabel}</span>
+                        </button>
+
+                        {/* Дропдаун */}
+                        {filterOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl shadow-2xl shadow-black/40 overflow-hidden z-50 animate-fade-in">
+                                {FILTERS.map(f => {
+                                    const Icon = f.icon;
+                                    return (
+                                        <button
+                                            key={f.id}
+                                            onClick={() => { setActiveFilter(f.id); setFilterOpen(false); }}
+                                            className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${activeFilter === f.id
+                                                    ? 'bg-blue-500/15 text-blue-400'
+                                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                                }`}
+                                        >
+                                            <Icon size={16} />
+                                            {f.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Контент */}
             {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-500 space-y-4">
-                    <Loader2 className="w-10 h-10 text-yellow-500 animate-spin" />
-                    <p>Завантаження бази даних...</p>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
+                    {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
                 </div>
             ) : filteredIdeas.length === 0 ? (
                 <div className="text-center py-20 text-slate-500">
@@ -151,19 +298,21 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
                                         <button
                                             onClick={() => handleVote(idea.id, 'up')}
                                             disabled={localVotes.support[idea.id] || localVotes.reject[idea.id]}
-                                            aria-label={`Підтримати ідею ${idea.id}. Голосів: ${idea.upvotes || 0}`}
+                                            aria-label={`Підтримати ідею ${idea.id}`}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${localVotes.support[idea.id] ? 'bg-green-500/20 text-green-400' : 'bg-white/5 hover:bg-white/10'}`}
                                         >
-                                            <ThumbsUp size={16} /> <span>{idea.upvotes || 0}</span>
+                                            <ThumbsUp size={16} className={votedId === idea.id + '-up' ? 'vote-animate' : ''} />
+                                            <span className={votedId === idea.id + '-up' ? 'vote-animate' : ''}>{idea.upvotes || 0}</span>
                                         </button>
 
                                         <button
                                             onClick={() => handleVote(idea.id, 'down')}
                                             disabled={localVotes.support[idea.id] || localVotes.reject[idea.id]}
-                                            aria-label={`Відхилити ідею ${idea.id}. Голосів: ${idea.downvotes || 0}`}
+                                            aria-label={`Відхилити ідею ${idea.id}`}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${localVotes.reject[idea.id] ? 'bg-red-500/20 text-red-400' : 'bg-white/5 hover:bg-white/10'}`}
                                         >
-                                            <ThumbsDown size={16} /> <span>{idea.downvotes || 0}</span>
+                                            <ThumbsDown size={16} className={votedId === idea.id + '-down' ? 'vote-animate' : ''} />
+                                            <span className={votedId === idea.id + '-down' ? 'vote-animate' : ''}>{idea.downvotes || 0}</span>
                                         </button>
 
                                         <button
@@ -180,7 +329,7 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
                         ))}
                     </div>
 
-                    {/* Пагінація (window-підхід) */}
+                    {/* Пагінація */}
                     {totalPages > 1 && (
                         <div className="flex justify-center items-center gap-2 mt-8 pb-8">
                             <button
