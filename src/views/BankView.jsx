@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Database, User, Clock, ThumbsUp, ThumbsDown, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Tag, Filter, BarChart3, CheckCircle2, Flame, Layers } from 'lucide-react';
+import { Search, Database, User, Clock, ThumbsUp, ThumbsDown, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Tag, Filter, BarChart3, CheckCircle2, Flame, Layers, Eye, XCircle, Clock3 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import IdeaModal from '../components/IdeaModal';
 import * as api from '../services/api';
@@ -46,8 +46,11 @@ function SkeletonCard() {
 const FILTERS = [
     { id: 'all', label: 'Всі ідеї', icon: Layers },
     { id: 'new', label: 'Нові', icon: Flame },
-    { id: 'popular', label: 'Популярні', icon: BarChart3 },
+    { id: 'review', label: 'На розгляді', icon: Eye },
+    { id: 'inwork', label: 'В роботі', icon: Clock3 },
     { id: 'done', label: 'Реалізовані', icon: CheckCircle2 },
+    { id: 'rejected', label: 'Відхилені', icon: XCircle },
+    { id: 'popular', label: 'Популярні', icon: BarChart3 },
 ];
 
 export default function BankView({ ideas, loading, localVotes, setLocalVotes, showNotify, refreshIdeas }) {
@@ -96,9 +99,18 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
 
         // Фільтр за статусом
         if (activeFilter === 'new') {
-            result = result.filter(i => i.status === 'Нова');
+            result = result.filter(i => (i.status || 'Нова').toLowerCase().includes('нова'));
+        } else if (activeFilter === 'review') {
+            result = result.filter(i => (i.status || '').toLowerCase().includes('розгляд'));
+        } else if (activeFilter === 'inwork') {
+            result = result.filter(i => (i.status || '').toLowerCase().includes('робот'));
         } else if (activeFilter === 'done') {
-            result = result.filter(i => i.status === 'Реалізовано' || i.status === 'Виконано');
+            result = result.filter(i => {
+                const s = (i.status || '').toLowerCase();
+                return s.includes('реаліз') || s.includes('виконан');
+            });
+        } else if (activeFilter === 'rejected') {
+            result = result.filter(i => (i.status || '').toLowerCase().includes('відхил'));
         } else if (activeFilter === 'popular') {
             result = [...result].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
         }
@@ -119,7 +131,10 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
     // Статистика
     const stats = useMemo(() => {
         const total = ideas.length;
-        const done = ideas.filter(i => i.status === 'Реалізовано' || i.status === 'Виконано').length;
+        const done = ideas.filter(i => {
+            const s = (i.status || '').toLowerCase();
+            return s.includes('реаліз') || s.includes('виконан');
+        }).length;
         const topVotes = ideas.reduce((max, i) => Math.max(max, i.upvotes || 0), 0);
         return { total, done, topVotes };
     }, [ideas]);
@@ -211,8 +226,8 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
                         <button
                             onClick={() => setFilterOpen(!filterOpen)}
                             className={`h-full px-4 rounded-2xl border transition-all flex items-center gap-2 text-sm font-medium ${activeFilter !== 'all'
-                                    ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
-                                    : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                                ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
+                                : 'bg-slate-900 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                                 }`}
                             aria-label="Фільтрувати ідеї"
                         >
@@ -230,8 +245,8 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
                                             key={f.id}
                                             onClick={() => { setActiveFilter(f.id); setFilterOpen(false); }}
                                             className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${activeFilter === f.id
-                                                    ? 'bg-blue-500/15 text-blue-400'
-                                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                                ? 'bg-blue-500/15 text-blue-400'
+                                                : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                                 }`}
                                         >
                                             <Icon size={16} />
