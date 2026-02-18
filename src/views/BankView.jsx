@@ -20,8 +20,26 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
     const [search, setSearch] = useState('');
     const [selectedIdea, setSelectedIdea] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
+    const [commentCounts, setCommentCounts] = useState({});
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    // Завантаження кількості коментарів
+    useEffect(() => {
+        const loadCounts = async () => {
+            const counts = {};
+            for (const idea of ideas) {
+                try {
+                    const comments = await api.getComments(idea.id);
+                    if (Array.isArray(comments) && comments.length > 0) {
+                        counts[idea.id] = comments.length;
+                    }
+                } catch { /* ignore */ }
+            }
+            setCommentCounts(counts);
+        };
+        if (ideas.length > 0) loadCounts();
+    }, [ideas]);
 
     const filteredIdeas = useMemo(() => {
         return ideas.filter(idea =>
@@ -118,25 +136,10 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
                                     </div>
                                 </div>
 
-                                {/* Заголовок — обрізаний або повний */}
-                                <h3 className={`text-lg font-medium text-slate-200 mb-1 ${expandedId === idea.id ? '' : 'line-clamp-2'}`}>
+                                {/* Текст — обрізаний або повний */}
+                                <h3 className={`text-lg font-medium text-slate-200 mb-1 transition-all duration-300 ${expandedId === idea.id ? '' : 'line-clamp-2'}`}>
                                     {idea.content}
                                 </h3>
-
-                                {/* Розгорнутий блок */}
-                                <div
-                                    style={{
-                                        display: 'grid',
-                                        gridTemplateRows: expandedId === idea.id ? '1fr' : '0fr',
-                                        transition: 'grid-template-rows 0.3s ease',
-                                    }}
-                                >
-                                    <div style={{ overflow: 'hidden' }}>
-                                        <div className="pt-3 pb-1 text-sm text-slate-400 whitespace-pre-wrap">
-                                            {idea.content}
-                                        </div>
-                                    </div>
-                                </div>
 
                                 <div className="flex items-center justify-between text-sm text-slate-500 border-t border-white/5 pt-3 mt-2">
                                     <div className="flex items-center gap-3">
@@ -165,10 +168,11 @@ export default function BankView({ ideas, loading, localVotes, setLocalVotes, sh
 
                                         <button
                                             onClick={() => setSelectedIdea(idea)}
-                                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-blue-400"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-blue-400 transition-colors"
                                             aria-label={`Коментарі до ідеї ${idea.id}`}
                                         >
                                             <MessageSquare size={16} />
+                                            <span>{commentCounts[idea.id] || 0}</span>
                                         </button>
                                     </div>
                                 </div>
