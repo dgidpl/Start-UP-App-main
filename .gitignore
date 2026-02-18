@@ -2,3 +2,5 @@ node_modules/
 dist/
 .env
 .env.local
+nav.html
+apps_script.md
