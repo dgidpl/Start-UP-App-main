@@ -10,6 +10,9 @@ import * as api from './services/api';
 
 const VALID_TABS = ['home', 'submit', 'bank', 'contacts'];
 
+// Ледь помітне зерно — прибирає «пластиковість» скла
+const NOISE_URI = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")";
+
 export default function App() {
     const [activeTab, setActiveTab] = useState(() => {
         const saved = sessionStorage.getItem('npu_active_tab');
@@ -92,21 +95,22 @@ export default function App() {
         }, 200);
     };
 
+    // One UI масштабує, а не лише зсуває
     const getSlideStyle = () => {
         if (slideState === 'out') return {
-            transform: `translateX(${-slideDir * 60}px)`,
+            transform: `translateX(${-slideDir * 48}px) scale(0.97)`,
             opacity: 0,
-            transition: 'transform 0.2s ease-in, opacity 0.2s ease-in',
+            transition: 'transform 0.2s var(--ease-oneui), opacity 0.2s var(--ease-oneui)',
         };
         if (slideState === 'in') return {
-            transform: `translateX(${slideDir * 60}px)`,
+            transform: `translateX(${slideDir * 48}px) scale(0.97)`,
             opacity: 0,
             transition: 'none',
         };
         return {
-            transform: 'translateX(0)',
+            transform: 'translateX(0) scale(1)',
             opacity: 1,
-            transition: 'transform 0.25s ease-out, opacity 0.25s ease-out',
+            transition: 'transform 0.3s var(--ease-oneui), opacity 0.3s var(--ease-oneui)',
         };
     };
 
@@ -121,11 +125,16 @@ export default function App() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-yellow-500/30 selection:text-yellow-200 overflow-x-hidden pb-20 md:pb-0">
-            {/* Background */}
-            <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse-slow"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-900/20 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-yellow-500/30 selection:text-yellow-200 pb-24 md:pb-0">
+            {/* Фон: aurora-плями + зерно */}
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-[-15%] left-[-15%] w-[65%] h-[55%] bg-blue-900/25 rounded-full blur-[80px] md:blur-[120px] animate-aurora"></div>
+                <div className="absolute bottom-[-15%] right-[-15%] w-[65%] h-[55%] bg-indigo-900/25 rounded-full blur-[80px] md:blur-[120px] animate-aurora" style={{ animationDelay: '-6s' }}></div>
+                <div className="absolute top-[35%] left-[25%] w-[45%] h-[40%] bg-yellow-500/[0.07] rounded-full blur-[80px] md:blur-[130px] animate-aurora" style={{ animationDelay: '-12s' }}></div>
+                <div
+                    className="absolute inset-0 opacity-[0.025] mix-blend-overlay"
+                    style={{ backgroundImage: NOISE_URI, backgroundRepeat: 'repeat' }}
+                ></div>
             </div>
 
             {/* Header */}
@@ -133,7 +142,7 @@ export default function App() {
 
             {/* Main Content with slide transition */}
             <main
-                className="relative z-10 max-w-6xl mx-auto p-4 md:p-6"
+                className="relative z-10 max-w-6xl mx-auto px-4 py-4 sm:px-5 md:p-6"
                 style={getSlideStyle()}
             >
                 {renderView()}
